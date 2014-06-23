@@ -408,7 +408,7 @@ class Show(Sequence):
 
     data = {}
 
-    def __init__(self, data, api, language, config):
+    def __init__(self, data, api, language, config, full_data=None):
         self.api, self.lang, self.config = api, language, config
         self.seasons = dict()
 
@@ -417,6 +417,8 @@ class Show(Sequence):
 
         self.data['actor_objects'] = list()
         self.data['banner_objects'] = list()
+
+        self.full_data = full_data
 
     def __getattr__(self, item):
         try:
@@ -473,7 +475,7 @@ class Show(Sequence):
         """
         self._populate_data()
 
-    def _populate_data(self):
+    def _populate_data(self, full_data=None):
         """
         Populates the Show object with data. This will hit the network to
         download the XML data from `thetvdb.com <http://thetvdb.com>`_.
@@ -486,13 +488,17 @@ class Show(Sequence):
         """
         logger.debug(u"Populating season data from URL.")
 
-        context = {'mirror': self.api.mirrors.get_mirror(TypeMask.XML).url,
-                   'api_key': self.config['api_key'],
-                   'seriesid': self.id,
-                   'language': self.lang}
+        if self.full_data is None:
+            context = {'mirror': self.api.mirrors.get_mirror(TypeMask.XML).url,
+                        'api_key': self.config['api_key'],
+                        'seriesid': self.id,
+                        'language': self.lang}
+            url = __series__.format(**context)
+            data = self.api.loader.load(url)
+            data = generate_tree(data)
+        else:
+            data = self.full_data
 
-        url = __series__.format(**context)
-        data = generate_tree(self.api.loader.load(url))
         episodes = [d for d in parse_xml(data, "Episode")]
 
         show_data = parse_xml(data, "Series")
@@ -819,7 +825,7 @@ class TVDB(object):
         if len(series) == 0:
             raise error.BadData("Bad data received")
         else:
-            return Show(series[0], self, language, self.config)
+            return Show(series[0], self, language, self.config, data)
 
     @unicode_arguments
     def get_episode(self, episode_id, language, cache=True):
